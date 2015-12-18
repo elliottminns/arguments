@@ -1,45 +1,32 @@
 import Arguments
 
-enum ExampleArguments: ArgumentType {
-    case URL
+enum ExampleOptions: Options {
+
     case Force
 
-    var name: String {
+    case URL
+
+    case Timeout
+
+    var type: OptionType {
+
         switch self {
+
+        case .Force:
+            return .Flag(short: "f", long: "force", hasValue: false, required: false)
+
         case .URL:
-            return "URL"
-        case .Force:
-            return "Force"
-        }
-    }
+            return .Indexed(index: 0, required: true)
 
-    var flag: String? {
-        switch self {
-        case .Force:
-            return "-f"
-        default:
-            return nil
-        }
-    }
-
-    var isRequired: Bool {
-        switch self {
-            case .URL:
-                return true
-            case .Force:
-                return false
-        }
-    }
-
-    var description: String? {
-        switch self {
-            case .URL:
-                return "The URL of the request"
-            case .Force:
-                return "Forces the request"
+        case .Timeout:
+            return .Flag(short: "t", long: "timeout", hasValue: true, required: false)
         }
     }
 }
 
-let arguments = Arguments<ExampleArguments>()
-arguments.printArguments()
+let arguments = Arguments<ExampleOptions>(options: [.Force, .URL, .Timeout])
+let value = arguments.valueForOption(.Timeout)
+let URL = arguments.valueForOption(.URL)
+
+print(value)
+print(URL)

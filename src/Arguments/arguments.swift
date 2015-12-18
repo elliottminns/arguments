@@ -1,60 +1,152 @@
 
-public protocol ArgumentType {
-    var name: String { get }
-    var flag: String? { get }
-    var isRequired: Bool { get}
-    var description: String? { get }
+public enum OptionType {
+    case Indexed(index: UInt, required: Bool)
+    case Flag(short: String, long: String?, hasValue: Bool, required: Bool)
 }
 
-public class Arguments<T: ArgumentType> {
-    
-    let flagged: [String: String]
+public protocol Options: Hashable {
+    var type: OptionType { get }
+}
 
-    static func argumentIsFlagType(argument argument: String) -> Bool {
-        return argument[argument.startIndex] == "-"
+public class Arguments<T: Options> {
+
+    let options: [T]
+    let arguments: [String]
+    let availableOptions: Set<T>
+    let flagValues: [T: String]
+    let indexed: [String]
+
+    public convenience init(options: [T]) {
+        self.init(options: options, arguments: Process.arguments)
     }
 
-    static func parseArguments() -> [String: String] {
+    init(options: [T], arguments: [String]) {
+        self.options = options
+        self.arguments = arguments
+        let parsed = OptionParser.parseArguments(arguments,
+            withOptions: options)
+        self.availableOptions = parsed.flags
+        self.flagValues = parsed.flagValues
+        self.indexed = parsed.indexValues
+    }
 
-        var arguments = [String: String]()
+    public func validate() -> Bool {
+        return true
+    }
+
+    public func intValueForOption(option: T) -> Int? {
+        guard let value: String = valueForOption(option) else { return nil }
+        return Int(value)
+    }
+
+    public func valueForOption(option: T) -> String? {
+
+        let value: String?
+
+        switch option.type {
+            
+        case .Flag(_, _, _, _):
+            value = flagValues[option]
+
+        case .Indexed(let index, _):
+            if Int(index) < indexed.count {
+                value = indexed[Int(index)]
+            } else {
+                value = nil
+            }
+        }
+
+        return value
+    }
+
+    public func hasOption(option: T) -> Bool {
+        return self.availableOptions.contains(option)
+    }
+}
+
+class OptionParser<T: Options> {
+
+    static func populateFlags(options options: [T]) -> [String: T] {
+        var flags = [String: T]()
+
+        for option in options {
+            switch option.type {
+
+            case .Flag(let short, let long, _, _):
+
+                if !short.hasPrefix("-") {
+                    flags["-" + short] = option
+                } else {
+                    flags[short] = option
+                }
+
+                if let long = long {
+                    if !long.hasPrefix("--") {
+                        flags[long] = option
+                    } else if long.hasPrefix("-") {
+                        flags["-" + long] = option
+                    } else {
+                        flags["--" + long] = option
+                    }
+                }
+            default:
+                break
+            }
+        }
+
+        return flags
+    }
+
+    static func parseArguments(arguments: [String], withOptions options: [T]) -> (flags: Set<T>, flagValues: [T: String], indexValues: [String]) {
+
+        var indexed: [String?] = arguments.map { return $0 as String? }
+
+        var foundFlags = Set<T>()
+        var flagValues = [T: String]()
+
+        var flags = populateFlags(options: options)
 
         var index = 0
 
-        for argument in Process.arguments {
+        for argument in arguments {
 
-            if index == 0 { index++; continue }
-            
-            if Arguments.argumentIsFlagType(argument: argument) {
-                
-                let flag = argument
+            guard index > 0 else {
+                indexed[index] = nil
+                index = index.successor()
+                continue
+            }
 
-                if Process.arguments.count > index + 1 {
+            if argument[argument.startIndex] == "-" {
 
-                    let value = Process.arguments[index + 1]
+                indexed[index] = nil
 
-                    if !Arguments.argumentIsFlagType(argument: value) {
-                        arguments[flag] = value
-                    } else {
-                        arguments[flag] = ""
+                if let option = flags[argument] {
+
+                    switch option.type {
+                    case .Flag(_, _, let hasValue, _):
+                        foundFlags.insert(option)
+
+                        if hasValue {
+                            if arguments.count > index + 1 {
+                                flagValues[option] = arguments[index + 1]
+                                indexed[index + 1] = nil
+                            }
+                        }
+                    default:
+                        break
                     }
-                } else {
-                    arguments[flag] = ""
                 }
             }
 
             index++
         }
 
-        return arguments
-    }
-
-    public func printArguments() {
-        for (key, value) in flagged {
-            print("\(key): \(value)")
+        let indexValues: [String] = indexed.filter {
+            return $0 != nil
+        }.map {
+            return $0!
         }
-    }
 
-    public init() {
-        flagged = Arguments.parseArguments()
+        return (flags: foundFlags, flagValues: flagValues, indexValues: indexValues)
     }
 }
