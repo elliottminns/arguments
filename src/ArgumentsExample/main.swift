@@ -1,12 +1,16 @@
 import Arguments
 
-enum ExampleOptions: Options {
+enum ExampleOptions {
 
     case Force
 
     case URL
 
     case Timeout
+
+}
+
+extension ExampleOptions: Options {
 
     var type: OptionType {
 

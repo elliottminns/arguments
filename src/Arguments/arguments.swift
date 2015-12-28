@@ -81,7 +81,7 @@ class OptionParser<T: Options> {
                 }
 
                 if let long = long {
-                    if !long.hasPrefix("--") {
+                    if long.hasPrefix("--") {
                         flags[long] = option
                     } else if long.hasPrefix("-") {
                         flags["-" + long] = option
